@@ -10,7 +10,7 @@
 #   "pyogrio",
 #   # НЕ wibemaps==0.2.6: пакета нет на PyPI.
 #   # Абсолютный file: — sandbox uv не резолвит относительный путь.
-#   "wibemaps==0.2.6",
+#   "wibemaps @ file:///Users/katerinasitnikova/Documents/work/wibemaps",
 # ]
 #
 # [tool.marimo.runtime]
@@ -950,21 +950,186 @@ def _(
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Beat 5: Песочница — interactive, Linear bars
+# Beat 5: Песочница — self-contained HTML widget (works in static Pages too)
 # ─────────────────────────────────────────────────────────────────────────────
 
 
 @app.cell(hide_code=True)
-def _(mo, section_eyebrow, section_heading, body_text, spacer, divider):
-    include_garages = mo.ui.switch(value=False, label="Учитывать участки с гаражами")
-    include_legal = mo.ui.switch(
-        value=False, label="Учитывать юридические лица в анализе"
+def _(
+    ACCENT,
+    BAR_LIGHT,
+    BAR_MID,
+    INK,
+    MUTED,
+    body_text,
+    divider,
+    mo,
+    np,
+    section_eyebrow,
+    section_heading,
+    spacer,
+):
+    import base64
+    import json
+    from pathlib import Path as _Path
+
+    np.random.seed(42)
+    _n = 500
+    _land_use = np.random.choice(
+        ["гараж", "открытый грунт", "МКД", "нежилое", "парк"],
+        size=_n,
+        p=[0.15, 0.25, 0.30, 0.20, 0.10],
     )
-    include_okn = mo.ui.switch(value=False, label="Работать с ОКН")
-    allow_merge = mo.ui.switch(
-        value=False,
-        label="Учитывать возможность объединения с соседними участками",
+    _owner = np.random.choice(
+        ["частный", "юрлицо", "публичный", "гос. структура"],
+        size=_n,
+        p=[0.35, 0.20, 0.25, 0.20],
     )
+    _has_okn = (np.random.rand(_n) < 0.12).astype(int)
+    _is_fragment = (np.random.rand(_n) < 0.22).astype(int)
+    _payload = json.dumps(
+        {
+            "n": _n,
+            "lu": _land_use.tolist(),
+            "ow": _owner.tolist(),
+            "okn": _has_okn.tolist(),
+            "frag": _is_fragment.tolist(),
+            "colors": {
+                "high": ACCENT,
+                "mid": BAR_MID,
+                "low": BAR_LIGHT,
+                "ink": INK,
+                "muted": MUTED,
+            },
+        },
+        ensure_ascii=False,
+        separators=(",", ":"),
+    )
+
+    _sandbox_html = f"""<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1"/>
+<style>
+  * {{ box-sizing: border-box; }}
+  body {{
+    margin: 0; padding: 0.25rem 0 0.5rem;
+    font-family: Inter, system-ui, -apple-system, sans-serif;
+    color: {INK}; background: #fff;
+  }}
+  .row {{
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 1rem; padding: 0.55rem 0; border-bottom: 1px solid #e4e4e7;
+    max-width: 640px;
+  }}
+  .row label {{ font-size: 0.95rem; color: #3f3f46; line-height: 1.35; flex: 1; }}
+  .sw {{
+    position: relative; width: 42px; height: 24px; flex-shrink: 0;
+    border-radius: 999px; background: #d4d4d8; border: 0; cursor: pointer;
+    transition: background .15s ease; padding: 0;
+  }}
+  .sw[aria-checked="true"] {{ background: {ACCENT}; }}
+  .sw span {{
+    position: absolute; top: 3px; left: 3px; width: 18px; height: 18px;
+    border-radius: 50%; background: #fff; transition: left .15s ease;
+    box-shadow: 0 1px 2px rgba(0,0,0,.15);
+  }}
+  .sw[aria-checked="true"] span {{ left: 21px; }}
+  .chart {{ margin-top: 1.25rem; max-width: 640px; }}
+  .bar-row {{
+    display: grid; grid-template-columns: 5.5rem 1fr 4.5rem;
+    align-items: center; gap: 0.65rem; margin: 0 0 0.7rem;
+  }}
+  .bar-label {{ font-size: 0.85rem; font-weight: 500; color: {INK}; }}
+  .bar-track {{ height: 18px; background: #f4f4f5; border-radius: 3px; overflow: hidden; }}
+  .bar-fill {{ height: 100%; border-radius: 0 3px 3px 0; min-width: 0; transition: width .2s ease; }}
+  .bar-pct {{ font-size: 0.8rem; color: {MUTED}; text-align: right; white-space: nowrap; }}
+</style>
+</head>
+<body>
+  <div class="row"><label for="g">Учитывать участки с гаражами</label>
+    <button type="button" class="sw" id="g" role="switch" aria-checked="false"><span></span></button></div>
+  <div class="row"><label for="l">Учитывать юридические лица в анализе</label>
+    <button type="button" class="sw" id="l" role="switch" aria-checked="false"><span></span></button></div>
+  <div class="row"><label for="o">Работать с ОКН</label>
+    <button type="button" class="sw" id="o" role="switch" aria-checked="false"><span></span></button></div>
+  <div class="row"><label for="m">Учитывать возможность объединения с соседними участками</label>
+    <button type="button" class="sw" id="m" role="switch" aria-checked="false"><span></span></button></div>
+  <div class="chart" id="chart"></div>
+<script>
+const DATA = {_payload};
+const order = ["Высокий", "Средний", "Низкий"];
+const fillOf = {{
+  "Высокий": DATA.colors.high,
+  "Средний": DATA.colors.mid,
+  "Низкий": DATA.colors.low,
+}};
+
+function assign(lu, ow, okn, frag, flags) {{
+  if (lu === "МКД" || lu === "парк") return "Низкий";
+  if (ow === "гос. структура") return "Низкий";
+  if (lu === "гараж" && !flags.g) return "Низкий";
+  if (ow === "юрлицо" && !flags.l) return "Низкий";
+  if (okn && !flags.o) return "Низкий";
+  if (frag && !flags.m) return "Низкий";
+  if (ow === "публичный" || okn) return "Средний";
+  return "Высокий";
+}}
+
+function counts(flags) {{
+  const c = {{"Высокий": 0, "Средний": 0, "Низкий": 0}};
+  for (let i = 0; i < DATA.n; i++) {{
+    c[assign(DATA.lu[i], DATA.ow[i], DATA.okn[i], DATA.frag[i], flags)]++;
+  }}
+  return c;
+}}
+
+function render() {{
+  const flags = {{
+    g: document.getElementById("g").getAttribute("aria-checked") === "true",
+    l: document.getElementById("l").getAttribute("aria-checked") === "true",
+    o: document.getElementById("o").getAttribute("aria-checked") === "true",
+    m: document.getElementById("m").getAttribute("aria-checked") === "true",
+  }};
+  const c = counts(flags);
+  const n = DATA.n;
+  document.getElementById("chart").innerHTML = order.map(name => {{
+    const v = c[name];
+    const pct = Math.round(v / n * 1000) / 10;
+    const w = Math.max(0, Math.min(100, v / n * 100));
+    const label = v + "  ·  " + pct + "%";
+    return '<div class="bar-row"><div class="bar-label">' + name + '</div>' +
+      '<div class="bar-track"><div class="bar-fill" style="width:' + w +
+      '%;background:' + fillOf[name] + '"></div></div>' +
+      '<div class="bar-pct">' + label + '</div></div>';
+  }}).join("");
+}}
+
+["g","l","o","m"].forEach(id => {{
+  const el = document.getElementById(id);
+  el.addEventListener("click", () => {{
+    const on = el.getAttribute("aria-checked") !== "true";
+    el.setAttribute("aria-checked", on ? "true" : "false");
+    render();
+  }});
+}});
+render();
+</script>
+</body></html>
+"""
+
+    _sandbox_b64 = base64.b64encode(_sandbox_html.encode("utf-8")).decode("ascii")
+    _sandbox = mo.Html(
+        f'<div style="width:100%;max-width:640px;height:420px;overflow:hidden;">'
+        f'<iframe src="data:text/html;base64,{_sandbox_b64}" '
+        f'title="Песочница правил" '
+        f'style="width:100%;height:420px;border:0;display:block;"></iframe>'
+        f"</div>"
+    )
+    _pages = _Path(__file__).resolve().parent / "docs"
+    if _pages.is_dir():
+        (_pages / "sandbox.html").write_text(_sandbox_html, encoding="utf-8")
 
     mo.vstack(
         [
@@ -977,120 +1142,7 @@ def _(mo, section_eyebrow, section_heading, body_text, spacer, divider):
                 "что и как изменится."
             ),
             spacer(1.2),
-            mo.vstack(
-                [include_garages, include_legal, include_okn, allow_merge],
-                gap=0.6,
-                align="start",
-            ),
-        ],
-        gap=0,
-    )
-    return include_garages, include_legal, include_okn, allow_merge
-
-
-@app.cell(hide_code=True)
-def _(
-    mo, alt, pd, np, spacer, chart_caption, ACCENT, BAR_LIGHT, BAR_MID,
-    MUTED, INK, include_garages, include_legal, include_okn, allow_merge,
-):
-    np.random.seed(42)
-    n = 500
-    land_use = np.random.choice(
-        ["гараж", "открытый грунт", "МКД", "нежилое", "парк"],
-        size=n,
-        p=[0.15, 0.25, 0.30, 0.20, 0.10],
-    )
-    owner = np.random.choice(
-        ["частный", "юрлицо", "публичный", "гос. структура"],
-        size=n,
-        p=[0.35, 0.20, 0.25, 0.20],
-    )
-    has_okn = np.random.rand(n) < 0.12
-    is_fragment = np.random.rand(n) < 0.22
-
-    inc_g = include_garages.value
-    inc_legal = include_legal.value
-    inc_okn = include_okn.value
-    do_merge = allow_merge.value
-
-    def assign_priority(lu, ow, okn, frag):
-        if lu in {"МКД", "парк"}:
-            return "Низкий"
-        if ow == "гос. структура":
-            return "Низкий"
-        if lu == "гараж" and not inc_g:
-            return "Низкий"
-        if ow == "юрлицо" and not inc_legal:
-            return "Низкий"
-        if okn and not inc_okn:
-            return "Низкий"
-        # без склейки мелкие «огрызки» остаются низким приоритетом
-        if frag and not do_merge:
-            return "Низкий"
-        if ow == "публичный" or okn:
-            return "Средний"
-        return "Высокий"
-
-    priorities = [
-        assign_priority(l, o, k, f)
-        for l, o, k, f in zip(land_use, owner, has_okn, is_fragment)
-    ]
-    counts = (
-        pd.Series(priorities)
-        .value_counts()
-        .reindex(["Высокий", "Средний", "Низкий"], fill_value=0)
-        .reset_index()
-    )
-    counts.columns = ["priority", "count"]
-    counts["pct"] = (counts["count"] / n * 100).round(1)
-    counts["label"] = (
-        counts["count"].astype(str) + "  ·  " + counts["pct"].astype(str) + "%"
-    )
-
-    color_scale = alt.Scale(
-        domain=["Высокий", "Средний", "Низкий"],
-        range=[ACCENT, BAR_MID, BAR_LIGHT],
-    )
-
-    _bars = (
-        alt.Chart(counts)
-        .mark_bar(size=22, cornerRadiusEnd=3)
-        .encode(
-            y=alt.Y(
-                "priority:N",
-                sort=["Высокий", "Средний", "Низкий"],
-                title=None,
-                axis=alt.Axis(labelColor=INK, labelFontWeight=500),
-            ),
-            x=alt.X("count:Q", title=None, scale=alt.Scale(domain=[0, n])),
-            color=alt.Color("priority:N", scale=color_scale, legend=None),
-            tooltip=["priority:N", "count:Q", alt.Tooltip("pct:Q", title="%")],
-        )
-    )
-    _labels = (
-        alt.Chart(counts)
-        .mark_text(align="left", dx=8, fontSize=12, fontWeight=500, color=MUTED)
-        .encode(
-            y=alt.Y("priority:N", sort=["Высокий", "Средний", "Низкий"]),
-            x="count:Q",
-            text="label:N",
-        )
-    )
-    chart = (_bars + _labels).properties(width=520, height=150)
-
-    high = int(counts.loc[counts["priority"] == "Высокий", "count"].iloc[0])
-    mid = int(counts.loc[counts["priority"] == "Средний", "count"].iloc[0])
-
-    flags = [
-        "гаражи включены" if inc_g else "гаражи исключены",
-        "юрлица включены" if inc_legal else "юрлица исключены",
-        "ОКН включены" if inc_okn else "ОКН исключены",
-        "объединение включено" if do_merge else "объединение выключено",
-    ]
-    mo.vstack(
-        [
-            spacer(1.0),
-            mo.as_html(chart),
+            _sandbox,
             spacer(4),
         ],
         gap=0,

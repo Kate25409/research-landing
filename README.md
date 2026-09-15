@@ -16,13 +16,13 @@ uv run --with marimo marimo export html --sandbox --no-include-code -f \
   -o /tmp/nb_landing_export.html nb_landing.py
 
 # 2) postprocess: data-URI → sidecar HTML + inject CSS
-# --names: от короткого iframe к длинному (parcel B, parcel A, center map)
+# --names: от короткого iframe к длинному
 python ~/.cursor/skills/marimo-html-export/scripts/postprocess_pages.py \
   /tmp/nb_landing_export.html \
   --pages-dir docs \
   --site-prefix /research-landing \
   --css landing.css \
-  --names parcel-b.html,parcel-a.html,map.html
+  --names sandbox.html,parcel-b.html,parcel-a.html,map.html
 
 git add docs && git commit -m "Update Pages export" && git push
 ```
