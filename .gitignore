@@ -1,0 +1,8 @@
+__marimo__/
+__pycache__/
+.DS_Store
+*.gpkg.bak
+data/developable_land.gpkg
+data/geo_assist_illustr.mov
+.venv/
+*.pyc

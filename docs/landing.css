@@ -1,0 +1,67 @@
+/* Marimo: .min-w-[400px] + flex min-width:auto + #App overflow-x-hidden.
+   iOS shrink-to-fits the overflow; Android/Chrome clips. */
+
+#App,
+#App > div,
+#App .min-w-\[400px\],
+#App div.m-auto,
+#App .marimo-cell,
+#App .markdown,
+#App .prose,
+#App .flex,
+#App [class*="output"] {
+  min-width: 0 !important;
+}
+
+#App .markdown,
+#App .prose,
+#App p,
+#App h1,
+#App h2,
+#App h3,
+#App li {
+  overflow-wrap: break-word;
+  word-wrap: break-word;
+}
+
+#App iframe,
+#App svg,
+#App canvas,
+#App .vega-embed,
+#App .vega-embed > div {
+  max-width: 100% !important;
+}
+
+#App [style*="max-width:640px"] {
+  max-width: min(640px, 100%) !important;
+  box-sizing: border-box;
+}
+
+#App [style*="justify-content:space-between"] {
+  flex-wrap: wrap;
+}
+
+@media (max-width: 720px) {
+  :root {
+    --content-width: 100%;
+    --content-width-medium: 100%;
+  }
+
+  html,
+  body,
+  #root,
+  #App {
+    overflow-x: hidden;
+  }
+
+  #App .min-w-\[400px\],
+  #App div.m-auto {
+    max-width: 100% !important;
+    width: 100% !important;
+    box-sizing: border-box;
+  }
+
+  #App img {
+    max-width: 100% !important;
+  }
+}
