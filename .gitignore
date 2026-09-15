@@ -1,8 +1,6 @@
-__marimo__/
-__pycache__/
-.DS_Store
-*.gpkg.bak
-data/developable_land.gpkg
-data/geo_assist_illustr.mov
-.venv/
-*.pyc
+# Local workspace stays intact; GitHub tracks only Pages artifacts under docs/
+*
+!docs/
+!docs/**
+!.gitignore
+!README.md
