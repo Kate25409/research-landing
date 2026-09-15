@@ -1,0 +1,2281 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Участок</title>
+    
+    <!-- MapLibre GL JS -->
+    <script src='https://unpkg.com/maplibre-gl@5.7.0/dist/maplibre-gl.js'></script>
+    <link href='https://unpkg.com/maplibre-gl@5.7.0/dist/maplibre-gl.css' rel='stylesheet' />
+    
+    <!-- MapLibre GL Compare (для сравнения карт) -->
+    <script src='https://unpkg.com/@maplibre/maplibre-gl-compare@0.5.0/dist/maplibre-gl-compare.js'></script>
+    <link href='https://unpkg.com/@maplibre/maplibre-gl-compare@0.5.0/dist/maplibre-gl-compare.css' rel='stylesheet' />
+    
+    
+    <style>
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+}
+
+#map {
+    width: 100%;
+    height: 100vh;
+}
+
+/* Контейнер для поисковой панели */
+.address-search-container {
+    position: fixed;
+    top: 10px;
+    left: 60px;
+    z-index: 9999;
+    background: white;
+    padding: 10px;
+    border-radius: 4px;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.3);
+    display: flex;
+    gap: 5px;
+}
+
+.address-search-input-wrapper {
+    position: relative;
+    display: inline-block;
+}
+
+.address-search-input {
+    padding: 8px;
+    width: 300px;
+    border: 1px solid #ccc;
+    border-radius: 3px;
+    font-size: 14px;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+}
+
+.address-search-input:focus {
+    outline: none;
+    border-color: #2c3e50;
+    box-shadow: 0 0 0 2px rgba(44, 62, 80, 0.1);
+}
+
+/* Контейнер для подсказок */
+.address-search-suggestions {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    margin-top: 4px;
+    background: white;
+    border: 1px solid #ccc;
+    border-radius: 3px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    max-height: 300px;
+    overflow-y: auto;
+    z-index: 10000;
+    display: none;
+}
+
+.address-search-suggestions.visible {
+    display: block;
+}
+
+.address-search-suggestion-item {
+    padding: 10px 12px;
+    cursor: pointer;
+    border-bottom: 1px solid #f0f0f0;
+    font-size: 14px;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+    color: #333;
+    transition: background-color 0.2s;
+}
+
+.address-search-suggestion-item:last-child {
+    border-bottom: none;
+}
+
+.address-search-suggestion-item:hover {
+    background-color: #f5f5f5;
+}
+
+.address-search-suggestion-item:active {
+    background-color: #e8e8e8;
+}
+
+.address-search-button {
+    padding: 8px 15px;
+    background: #2c3e50;
+    color: white;
+    border: none;
+    border-radius: 3px;
+    cursor: pointer;
+    font-size: 14px;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+    transition: background 0.2s;
+}
+
+.address-search-button:hover {
+    background: #34495e;
+}
+
+.address-search-button:active {
+    background: #1a252f;
+}
+
+.search-marker {
+    width: 30px;
+    height: 30px;
+    border-radius: 50% 50% 50% 0;
+    background: #e31a1c;
+    border: 3px solid white;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+    transform: rotate(-45deg);
+    cursor: pointer;
+}
+
+.search-marker::after {
+    content: '';
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: white;
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%) rotate(45deg);
+}
+
+.legend {
+    position: fixed;
+    bottom: 30px;
+    right: 10px;
+    background: white;
+    padding: 15px;
+    border-radius: 4px;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.3);
+    z-index: 1000;
+    font-size: 12px;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+    max-width: 320px;
+    max-height: 85vh;
+    overflow-y: auto;
+}
+
+.legend-section {
+    margin-bottom: 15px;
+    padding-bottom: 15px;
+    border-bottom: 1px solid #e0e0e0;
+}
+
+.legend-section:first-child {
+    margin-bottom: 10px;
+    padding-bottom: 8px;
+    border-bottom: none;
+}
+
+.legend-section:last-child {
+    margin-bottom: 0;
+    padding-bottom: 0;
+    border-bottom: none;
+}
+
+.legend-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+}
+
+.legend-title {
+    font-weight: bold;
+    font-size: 13px;
+    color: #2c3e50;
+    flex: 1;
+}
+
+/* Заголовок карты (отличается от названий слоев) */
+.legend-map-title {
+    font-weight: 600;
+    font-size: 16px;
+    color: #1a252f;
+    flex: 1;
+    padding: 4px 0 6px 0;
+    border-bottom: 2px solid #2c3e50;
+    margin-bottom: 0;
+    letter-spacing: 0.3px;
+}
+
+.legend-panel-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+    user-select: none;
+    margin-bottom: 10px;
+}
+
+.legend-panel-header .legend-map-title {
+    border-bottom: none;
+    padding-bottom: 0;
+}
+
+.legend-panel-header.collapsed {
+    margin-bottom: 0;
+}
+
+.legend-panel-arrow {
+    font-size: 12px;
+    color: #2c3e50;
+    transition: transform 0.2s ease;
+    font-weight: bold;
+    flex-shrink: 0;
+}
+
+.legend-panel-header.collapsed .legend-panel-arrow {
+    transform: rotate(-90deg);
+}
+
+.legend-body.collapsed {
+    display: none;
+}
+
+/* Переключатель слоев */
+.layer-toggle {
+    position: relative;
+    display: inline-block;
+    width: 44px;
+    height: 24px;
+    margin-left: 10px;
+}
+
+.layer-toggle input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+
+.toggle-slider {
+    position: absolute;
+    cursor: pointer;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: #ccc;
+    transition: 0.3s;
+    border-radius: 24px;
+}
+
+.toggle-slider:before {
+    position: absolute;
+    content: "";
+    height: 18px;
+    width: 18px;
+    left: 3px;
+    bottom: 3px;
+    background-color: white;
+    transition: 0.3s;
+    border-radius: 50%;
+}
+
+.layer-toggle input:checked + .toggle-slider {
+    background-color: #2c3e50;
+}
+
+.layer-toggle input:checked + .toggle-slider:before {
+    transform: translateX(20px);
+}
+
+.layer-toggle input:focus + .toggle-slider {
+    box-shadow: 0 0 1px #2c3e50;
+}
+
+.legend-description {
+    font-size: 11px;
+    color: #666;
+    margin-bottom: 8px;
+    line-height: 1.4;
+}
+
+.legend-colorbar {
+    height: 20px;
+    width: 100%;
+    border: 1px solid #ccc;
+    margin: 8px 0;
+    border-radius: 2px;
+}
+
+.legend-values {
+    display: flex;
+    justify-content: space-between;
+    font-size: 10px;
+    color: #666;
+    margin-top: 4px;
+}
+
+/* Компактный вид для одноцветных слоев */
+.legend-single-color {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 8px;
+}
+
+.legend-color-indicator {
+    width: 20px;
+    height: 20px;
+    border: 1px solid #ccc;
+    border-radius: 2px;
+    flex-shrink: 0;
+}
+
+.legend-loader {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 12px 0;
+    color: #666;
+    font-size: 11px;
+}
+
+.legend-loader-spinner {
+    width: 16px;
+    height: 16px;
+    border: 2px solid #e0e0e0;
+    border-top-color: #2c3e50;
+    border-radius: 50%;
+    animation: legend-spin 0.8s linear infinite;
+}
+
+@keyframes legend-spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+.legend-loader-text {
+    color: #666;
+    font-size: 11px;
+}
+
+.legend-instructions {
+    background: #ffffff;
+    padding: 0;
+    border-radius: 6px;
+    margin-top: 15px;
+    border: 2px solid #2c3e50;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+    transition: box-shadow 0.2s ease, border-color 0.2s ease;
+}
+
+.legend-instructions:hover {
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+    border-color: #34495e;
+}
+
+.legend-instructions-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    cursor: pointer;
+    user-select: none;
+    padding: 10px 12px;
+    background: linear-gradient(135deg, #2c3e50 0%, #34495e 100%);
+    border-radius: 4px 4px 0 0;
+    transition: background 0.2s ease;
+}
+
+.legend-instructions-header:hover {
+    background: linear-gradient(135deg, #34495e 0%, #2c3e50 100%);
+}
+
+.legend-instructions-title {
+    font-weight: bold;
+    font-size: 12px;
+    color: #ffffff;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.legend-instructions-title::before {
+    content: '💡';
+    font-size: 14px;
+    filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.3));
+}
+
+.legend-instructions-arrow {
+    font-size: 12px;
+    color: #ffffff;
+    transition: transform 0.2s ease;
+    font-weight: bold;
+}
+
+.legend-instructions-header.collapsed .legend-instructions-arrow {
+    transform: rotate(-90deg);
+}
+
+.legend-instructions-content {
+    padding: 12px;
+    transition: max-height 0.3s ease, opacity 0.3s ease;
+    overflow: hidden;
+    background: #ffffff;
+}
+
+.legend-instructions-content.collapsed {
+    display: none;
+}
+
+.legend-instructions-list {
+    font-size: 11px;
+    color: #555;
+    line-height: 1.6;
+    margin: 0;
+    padding-left: 18px;
+}
+
+.legend-instructions-list li {
+    margin-bottom: 4px;
+}
+
+/* Стили для попапов MapLibre GL JS */
+.maplibregl-popup {
+    max-width: 460px;
+    min-width: 280px;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+}
+
+.maplibregl-popup-content {
+    padding: 16px 45px 16px 16px;
+    border-radius: 8px;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+    background: #ffffff;
+    border: 1px solid #e0e0e0;
+    position: relative;
+    max-height: min(70vh, 560px);
+    overflow-y: auto;
+    overflow-x: hidden;
+    overscroll-behavior: contain;
+}
+
+.maplibregl-popup-tip {
+    border-top-color: #ffffff;
+}
+
+.maplibregl-popup-close-button {
+    width: 28px;
+    height: 28px;
+    font-size: 18px;
+    line-height: 28px;
+    color: #666;
+    background: rgba(255, 255, 255, 0.95);
+    border-radius: 50%;
+    border: 1px solid #e0e0e0;
+    right: 10px;
+    top: 10px;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: absolute;
+    z-index: 10;
+}
+
+.maplibregl-popup-close-button:hover {
+    background: #f44336;
+    color: #ffffff;
+    border-color: #f44336;
+    transform: scale(1.1);
+}
+
+.maplibregl-popup-close-button:active {
+    transform: scale(0.95);
+}
+
+.popup-content {
+    margin: 0;
+}
+
+/* Опционально растягиваемый popup */
+.popup--resizable {
+    max-width: none;
+}
+
+.popup-shell--resizable {
+    resize: both;
+    min-width: 300px;
+    min-height: 180px;
+    max-width: min(92vw, 900px);
+    max-height: min(85vh, 760px);
+}
+
+.popup-content--resizable {
+    resize: none;
+    overflow: visible;
+    min-width: 0;
+    min-height: 0;
+    max-width: none;
+    max-height: none;
+}
+
+.popup-row {
+    display: grid;
+    grid-template-columns: minmax(130px, 42%) minmax(0, 58%);
+    column-gap: 12px;
+    align-items: start;
+    margin-bottom: 12px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid #f0f0f0;
+}
+
+.popup-row:last-child {
+    margin-bottom: 0;
+    padding-bottom: 0;
+    border-bottom: none;
+}
+
+.popup-label {
+    font-weight: 600;
+    color: #2c3e50;
+    font-size: 13px;
+    line-height: 1.5;
+    overflow-wrap: anywhere;
+}
+
+.popup-value {
+    color: #555;
+    font-size: 13px;
+    text-align: left;
+    white-space: normal;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+    min-width: 0;
+}
+
+.maplibregl-canvas-container.maplibregl-interactive {
+    cursor: default;
+}
+
+/* Контейнер для переключения провайдеров тайлов */
+.tile-providers-container {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+    margin-top: 8px;
+}
+
+.tile-provider-btn {
+    padding: 6px 12px;
+    background: #f5f5f5;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 11px;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+    color: #555;
+    transition: all 0.2s ease;
+    white-space: nowrap;
+}
+
+.tile-provider-btn:hover {
+    background: #e8e8e8;
+    border-color: #bbb;
+    transform: translateY(-1px);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.tile-provider-btn.active {
+    background: #2c3e50;
+    color: white;
+    border-color: #2c3e50;
+    font-weight: 600;
+    box-shadow: 0 2px 6px rgba(44, 62, 80, 0.3);
+}
+
+.tile-provider-btn.active:hover {
+    background: #34495e;
+    border-color: #34495e;
+}
+
+.overlay-providers-container {
+    margin-top: 8px;
+    border-top: 1px dashed #d6dce1;
+    padding-top: 8px;
+}
+
+.overlay-control {
+    margin-bottom: 8px;
+}
+
+.overlay-control:last-child {
+    margin-bottom: 0;
+}
+
+.overlay-control-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+    color: #2c3e50;
+    margin-bottom: 4px;
+}
+
+.overlay-opacity-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.overlay-opacity-row input[type="range"] {
+    flex: 1;
+}
+
+.overlay-opacity-value {
+    min-width: 36px;
+    text-align: right;
+    font-size: 11px;
+    color: #666;
+}
+
+/* Стили для режима сравнения карт */
+.comparison-container {
+    position: relative;
+    width: 100%;
+    height: 100vh;
+    overflow: hidden;
+}
+
+.comparison-map {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+}
+
+#before {
+    z-index: 1;
+}
+
+#after {
+    z-index: 2;
+}
+
+/* Стили для слайдера сравнения (дополняют стили maplibre-gl-compare) */
+.maplibregl-compare {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 2px;
+    background: #fff;
+    box-shadow: -2px 0 4px rgba(0, 0, 0, 0.3), 2px 0 4px rgba(0, 0, 0, 0.3);
+    cursor: ew-resize;
+    z-index: 10;
+}
+
+.maplibregl-compare::before {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 40px;
+    height: 40px;
+    background: #fff;
+    border: 2px solid #2c3e50;
+    border-radius: 50%;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+    cursor: grab;
+}
+
+.maplibregl-compare:active::before {
+    cursor: grabbing;
+}
+
+.maplibregl-compare::after {
+    content: '◄ ►';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    color: #2c3e50;
+    font-size: 14px;
+    font-weight: bold;
+    pointer-events: none;
+}
+
+/* Overlay контейнер для маркеров поиска в режиме сравнения */
+.search-markers-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    z-index: 20; /* Выше слайдера сравнения (z-index: 10) */
+}
+
+.search-marker-overlay {
+    position: absolute;
+    pointer-events: auto;
+    transform: translate(-50%, -100%);
+}
+
+.search-popup-overlay {
+    position: absolute;
+    pointer-events: auto;
+    transform: translate(-50%, -100%);
+    max-width: 350px;
+    min-width: 250px;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+}
+
+.search-popup-overlay .popup-content {
+    padding: 16px 45px 16px 16px;
+    border-radius: 8px;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+    background: #ffffff;
+    border: 1px solid #e0e0e0;
+    position: relative;
+    max-height: min(70vh, 560px);
+    overflow-y: auto;
+    overflow-x: hidden;
+    overscroll-behavior: contain;
+}
+
+.search-popup-overlay .popup-close {
+    width: 28px;
+    height: 28px;
+    font-size: 18px;
+    line-height: 28px;
+    color: #666;
+    background: rgba(255, 255, 255, 0.95);
+    border-radius: 50%;
+    border: 1px solid #e0e0e0;
+    right: 10px;
+    top: 10px;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: absolute;
+    z-index: 10;
+    cursor: pointer;
+    margin: 0;
+    padding: 0;
+}
+
+.search-popup-overlay .popup-close:hover {
+    background: #f44336;
+    color: #ffffff;
+    border-color: #f44336;
+    transform: scale(1.1);
+}
+
+.search-popup-overlay .popup-close:active {
+    transform: scale(0.95);
+}
+
+/* Overlay контейнер для попапов слоев в режиме сравнения */
+.layer-popups-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    z-index: 20; /* Выше слайдера сравнения (z-index: 10) */
+}
+
+.layer-popup-overlay {
+    position: absolute;
+    pointer-events: auto;
+    transform: translate(-50%, -100%);
+    max-width: 350px;
+    min-width: 250px;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+}
+
+.layer-popup-overlay .popup-content {
+    padding: 16px 45px 16px 16px;
+    border-radius: 8px;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+    background: #ffffff;
+    border: 1px solid #e0e0e0;
+    position: relative;
+    max-height: min(70vh, 560px);
+    overflow-y: auto;
+    overflow-x: hidden;
+    overscroll-behavior: contain;
+}
+
+.layer-popup-overlay .popup-close {
+    width: 28px;
+    height: 28px;
+    font-size: 18px;
+    line-height: 28px;
+    color: #666;
+    background: rgba(255, 255, 255, 0.95);
+    border-radius: 50%;
+    border: 1px solid #e0e0e0;
+    right: 10px;
+    top: 10px;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: absolute;
+    z-index: 10;
+    cursor: pointer;
+    margin: 0;
+    padding: 0;
+}
+
+.layer-popup-overlay .popup-close:hover {
+    background: #f44336;
+    color: #ffffff;
+    border-color: #f44336;
+    transform: scale(1.1);
+}
+
+.layer-popup-overlay .popup-close:active {
+    transform: scale(0.95);
+}
+
+    </style>
+<style>.address-search-container,.legend{display:none!important;}</style></head>
+<body>
+    <!-- Поисковая панель -->
+    <div class="address-search-container">
+        <div class="address-search-input-wrapper">
+            <input type="text" 
+                id="address-search" 
+                class="address-search-input"
+                placeholder="Введите адрес"
+                autocomplete="off">
+            <div id="address-search-suggestions" class="address-search-suggestions"></div>
+        </div>
+        <button onclick="searchAddress()" 
+            class="address-search-button">
+            Найти
+        </button>
+    </div>
+
+    <!-- Карта -->
+    <div id="map"></div>
+
+    <!-- Легенда -->
+    <div class="legend">
+        <div class="legend-panel-header" onclick="toggleLegendPanel()">
+            <div class="legend-map-title">Участок</div>
+            <span class="legend-panel-arrow">▼</span>
+        </div>
+        <div class="legend-body">
+        <div class="legend-section">
+            <div class="legend-single-color">
+                <div class="legend-color-indicator" id="parcel-color-indicator" style="background-color: #1c32bd;"></div>
+                <div class="legend-title">parcel</div>
+                <label class="layer-toggle">
+                    <input type="checkbox" id="parcel-toggle" checked onchange="toggleLayer('parcel-layer', this.checked)">
+                    <span class="toggle-slider"></span>
+                </label>
+            </div>
+            <div class="legend-loader" id="parcel-loader">
+                <div class="legend-loader-spinner"></div>
+                <span class="legend-loader-text">Загрузка данных...</span>
+            </div>
+        </div>
+        </div>
+    </div>
+    
+    <script>
+        // =========================================================================
+        // Утилиты
+        // =========================================================================
+        
+        // Форматирование чисел
+        function formatNumber(num) {
+            if (num >= 1000000) {
+                return (num / 1000000).toFixed(1) + 'М';
+            } else if (num >= 1000) {
+                return (num / 1000).toFixed(1) + 'К';
+            }
+            return Math.round(num).toLocaleString('ru-RU');
+        }
+        
+        // Функция debounce для ограничения частоты запросов
+        function debounce(func, wait) {
+            let timeout;
+            return function executedFunction(...args) {
+                const later = () => {
+                    clearTimeout(timeout);
+                    func(...args);
+                };
+                clearTimeout(timeout);
+                timeout = setTimeout(later, wait);
+            };
+        }
+        
+        // Открытие Яндекс.Карт
+        function openYandexMaps(lon, lat) {
+            const url = `https://yandex.ru/maps/213/moscow/?ll=${lon}%2C${lat}&mode=whatshere&whatshere%5Bpoint%5D=${lon}%2C${lat}&whatshere%5Bzoom%5D=17&z=17`;
+            window.open(url, '_blank');
+            console.log('Opening Yandex Maps:', lat, lon);
+        }
+
+
+        // =========================================================================
+        // Tile providers (base + overlay)
+        // =========================================================================
+
+        function getActiveMaps() {
+            return isComparisonMode ? [mapBefore, mapAfter] : [map];
+        }
+
+        // Add all configured raster sources/layers.
+        async function addCustomTiles(targetMap) {
+            for (const [providerName, providerConfig] of Object.entries(tileProviders)) {
+                const sourceId = `${providerName}-tiles`;
+                const layerId = `${providerName}-layer`;
+
+                targetMap.addSource(sourceId, {
+                    type: 'raster',
+                    tiles: [providerConfig.url],
+                    tileSize: providerConfig.tileSize
+                });
+
+                const isOverlay = Boolean(providerConfig.isOverlay);
+                const visibleByDefault = isOverlay
+                    ? Boolean(providerConfig.defaultVisible)
+                    : providerName === currentTileProvider;
+
+                const layerConfig = {
+                    id: layerId,
+                    type: 'raster',
+                    source: sourceId,
+                    minzoom: providerConfig.minzoom,
+                    maxzoom: providerConfig.maxzoom,
+                    layout: {
+                        visibility: visibleByDefault ? 'visible' : 'none'
+                    },
+                    paint: {
+                        'raster-opacity': providerConfig.defaultOpacity ?? (isOverlay ? 0.6 : 1),
+                        ...(providerConfig.paint || {}),
+                    },
+                };
+
+                targetMap.addLayer(layerConfig);
+            }
+
+            console.log('Кастомные тайлы добавлены');
+        }
+
+        // Switch base map provider.
+        window.switchTileProvider = function(providerName) {
+            const provider = tileProviders[providerName];
+            if (!provider) {
+                console.warn(`Провайдер ${providerName} не найден`);
+                return;
+            }
+            if (provider.isOverlay) {
+                console.warn(`Провайдер ${providerName} является overlay и не может быть базовой картой`);
+                return;
+            }
+
+            const mapsToUpdate = getActiveMaps();
+
+            for (const [name, cfg] of Object.entries(tileProviders)) {
+                if (cfg.isOverlay) continue;
+                const layerId = `${name}-layer`;
+                mapsToUpdate.forEach(targetMap => {
+                    if (targetMap && targetMap.getLayer(layerId)) {
+                        targetMap.setLayoutProperty(layerId, 'visibility', 'none');
+                    }
+                });
+            }
+
+            const layerId = `${providerName}-layer`;
+            let found = false;
+            mapsToUpdate.forEach(targetMap => {
+                if (targetMap && targetMap.getLayer(layerId)) {
+                    targetMap.setLayoutProperty(layerId, 'visibility', 'visible');
+                    found = true;
+                }
+            });
+
+            if (found) {
+                currentTileProvider = providerName;
+                updateTileProviderUI(providerName);
+                console.log(`Переключено на провайдер: ${providerName}`);
+            }
+        };
+
+        // Toggle overlay visibility.
+        window.toggleRasterOverlay = function(providerName, visible) {
+            const provider = tileProviders[providerName];
+            if (!provider || !provider.isOverlay) {
+                console.warn(`Overlay ${providerName} не найден`);
+                return;
+            }
+
+            const layerId = `${providerName}-layer`;
+            getActiveMaps().forEach(targetMap => {
+                if (targetMap && targetMap.getLayer(layerId)) {
+                    targetMap.setLayoutProperty(layerId, 'visibility', visible ? 'visible' : 'none');
+                }
+            });
+        };
+
+        // Update overlay opacity.
+        window.setRasterOverlayOpacity = function(providerName, opacity) {
+            const provider = tileProviders[providerName];
+            if (!provider || !provider.isOverlay) {
+                console.warn(`Overlay ${providerName} не найден`);
+                return;
+            }
+
+            const value = Math.max(0, Math.min(1, Number(opacity)));
+            const layerId = `${providerName}-layer`;
+            getActiveMaps().forEach(targetMap => {
+                if (targetMap && targetMap.getLayer(layerId)) {
+                    targetMap.setPaintProperty(layerId, 'raster-opacity', value);
+                }
+            });
+        };
+
+        // Update active base-map button state.
+        function updateTileProviderUI(activeProvider) {
+            const buttons = document.querySelectorAll('.tile-provider-btn');
+            buttons.forEach(btn => {
+                if (btn.dataset.provider === activeProvider) {
+                    btn.classList.add('active');
+                } else {
+                    btn.classList.remove('active');
+                }
+            });
+        }
+
+
+// =========================================================================
+// Search: geocoder + local GeoJSON fields
+// =========================================================================
+
+let currentSearchCoords = null; // [lon, lat]
+let searchMarkerOverlayEl = null;
+let searchPopupOverlayEl = null;
+
+function updateSearchMarkerPosition() {
+    if (!isComparisonMode || !currentSearchCoords) return;
+
+    const overlay = document.getElementById('search-markers-overlay');
+    const markerEl = document.getElementById('search-marker-overlay');
+    const popupEl = document.getElementById('search-popup-overlay');
+
+    if (!overlay || !markerEl || !mapBefore) return;
+
+    const [lon, lat] = currentSearchCoords;
+    const point = mapBefore.project([lon, lat]);
+    const mapContainer = mapBefore.getContainer();
+    const mapRect = mapContainer.getBoundingClientRect();
+    const overlayRect = overlay.getBoundingClientRect();
+
+    const left = point.x + (mapRect.left - overlayRect.left);
+    const top = point.y + (mapRect.top - overlayRect.top);
+
+    markerEl.style.left = left + 'px';
+    markerEl.style.top = top + 'px';
+
+    if (popupEl) {
+        popupEl.style.left = left + 'px';
+        popupEl.style.top = (top - 35) + 'px';
+    }
+}
+
+function getSearchMode() {
+    return (searchConfig && searchConfig.search_mode) ? searchConfig.search_mode : 'geocoder';
+}
+
+function isGeojsonSearchMode() {
+    return getSearchMode() === 'geojson';
+}
+
+function getSearchLayers() {
+    if (searchConfig && Array.isArray(searchConfig.search_layers) && searchConfig.search_layers.length > 0) {
+        return searchConfig.search_layers;
+    }
+    if (mapConfig && mapConfig.layers) {
+        return Object.keys(mapConfig.layers);
+    }
+    return [];
+}
+
+function getSearchFields() {
+    if (searchConfig && Array.isArray(searchConfig.search_fields)) {
+        return searchConfig.search_fields;
+    }
+    return [];
+}
+
+function getMaxResults() {
+    if (searchConfig && Number.isFinite(searchConfig.max_results)) {
+        return Math.max(1, searchConfig.max_results);
+    }
+    return 5;
+}
+
+function getZoomOnResult() {
+    if (searchConfig && Number.isFinite(searchConfig.zoom_on_result)) {
+        return searchConfig.zoom_on_result;
+    }
+    return 15;
+}
+
+function getPrimaryMapForSearch() {
+    if (isComparisonMode) return mapBefore || mapAfter;
+    return map;
+}
+
+function getLayerSourceData(targetMap, layerName) {
+    if (!targetMap) return null;
+    const source = targetMap.getSource(layerName);
+    if (!source) return null;
+
+    if (source._data && source._data.type === 'FeatureCollection') {
+        return source._data;
+    }
+
+    if (typeof source.serialize === 'function') {
+        const serialized = source.serialize();
+        if (serialized && serialized.data && serialized.data.type === 'FeatureCollection') {
+            return serialized.data;
+        }
+    }
+
+    return null;
+}
+
+function collectGeometryCoords(geometry, out) {
+    if (!geometry || !geometry.type) return;
+
+    const walk = (node) => {
+        if (!Array.isArray(node)) return;
+        if (node.length >= 2 && typeof node[0] === 'number' && typeof node[1] === 'number') {
+            out.push([node[0], node[1]]);
+            return;
+        }
+        node.forEach(walk);
+    };
+
+    walk(geometry.coordinates);
+}
+
+function getFeatureCenter(feature) {
+    if (!feature || !feature.geometry) return null;
+
+    const points = [];
+    collectGeometryCoords(feature.geometry, points);
+    if (!points.length) return null;
+
+    let minLon = points[0][0];
+    let maxLon = points[0][0];
+    let minLat = points[0][1];
+    let maxLat = points[0][1];
+
+    for (let i = 1; i < points.length; i += 1) {
+        const [lon, lat] = points[i];
+        if (lon < minLon) minLon = lon;
+        if (lon > maxLon) maxLon = lon;
+        if (lat < minLat) minLat = lat;
+        if (lat > maxLat) maxLat = lat;
+    }
+
+    return [(minLon + maxLon) / 2, (minLat + maxLat) / 2];
+}
+
+function findGeojsonMatches(query, limit = null) {
+    const q = String(query || '').trim().toLowerCase();
+    if (!q) return [];
+
+    const fields = getSearchFields();
+    if (!fields.length) return [];
+
+    const targetMap = getPrimaryMapForSearch();
+    if (!targetMap) return [];
+
+    const layers = getSearchLayers();
+    const maxResults = limit || getMaxResults();
+    const results = [];
+
+    for (const layerName of layers) {
+        const data = getLayerSourceData(targetMap, layerName);
+        if (!data || !Array.isArray(data.features)) continue;
+
+        for (const feature of data.features) {
+            const props = feature && feature.properties ? feature.properties : {};
+
+            for (const fieldName of fields) {
+                const rawValue = props[fieldName];
+                if (rawValue === undefined || rawValue === null) continue;
+
+                const valueText = String(rawValue);
+                if (!valueText.toLowerCase().includes(q)) continue;
+
+                const coords = getFeatureCenter(feature);
+                if (!coords) continue;
+
+                results.push({
+                    layerName,
+                    fieldName,
+                    valueText,
+                    coords,
+                    feature,
+                    displayText: valueText,
+                });
+
+                if (results.length >= maxResults) {
+                    return results;
+                }
+
+                break;
+            }
+        }
+    }
+
+    return results;
+}
+
+function getFeatureBounds(feature) {
+    if (!feature || !feature.geometry) return null;
+
+    const points = [];
+    collectGeometryCoords(feature.geometry, points);
+    if (!points.length) return null;
+
+    let minLon = points[0][0];
+    let maxLon = points[0][0];
+    let minLat = points[0][1];
+    let maxLat = points[0][1];
+
+    for (let i = 1; i < points.length; i += 1) {
+        const [lon, lat] = points[i];
+        if (lon < minLon) minLon = lon;
+        if (lon > maxLon) maxLon = lon;
+        if (lat < minLat) minLat = lat;
+        if (lat > maxLat) maxLat = lat;
+    }
+
+    return [
+        [minLon, minLat],
+        [maxLon, maxLat],
+    ];
+}
+
+function isPolygonFeature(feature) {
+    if (!feature || !feature.geometry || !feature.geometry.type) return false;
+    const t = feature.geometry.type;
+    return t === 'Polygon' || t === 'MultiPolygon';
+}
+
+const SEARCH_HIGHLIGHT_SOURCE_ID = 'wibemaps-search-highlight-source';
+const SEARCH_HIGHLIGHT_FILL_ID = 'wibemaps-search-highlight-fill';
+const SEARCH_HIGHLIGHT_LINE_ID = 'wibemaps-search-highlight-line';
+
+function ensureSearchHighlightLayers(targetMap) {
+    if (!targetMap || targetMap.getSource(SEARCH_HIGHLIGHT_SOURCE_ID)) return;
+
+    targetMap.addSource(SEARCH_HIGHLIGHT_SOURCE_ID, {
+        type: 'geojson',
+        data: { type: 'FeatureCollection', features: [] },
+    });
+
+    targetMap.addLayer({
+        id: SEARCH_HIGHLIGHT_FILL_ID,
+        type: 'fill',
+        source: SEARCH_HIGHLIGHT_SOURCE_ID,
+        paint: {
+            'fill-color': '#ffd400',
+            'fill-opacity': 0.28,
+        },
+    });
+
+    targetMap.addLayer({
+        id: SEARCH_HIGHLIGHT_LINE_ID,
+        type: 'line',
+        source: SEARCH_HIGHLIGHT_SOURCE_ID,
+        paint: {
+            'line-color': '#ffd400',
+            'line-width': 3.5,
+        },
+    });
+}
+
+function clearSearchHighlight(targetMap) {
+    if (!targetMap) return;
+    const source = targetMap.getSource(SEARCH_HIGHLIGHT_SOURCE_ID);
+    if (!source) return;
+    source.setData({ type: 'FeatureCollection', features: [] });
+}
+
+function setSearchHighlight(targetMap, feature) {
+    if (!targetMap) return;
+    if (!feature) {
+        clearSearchHighlight(targetMap);
+        return;
+    }
+    ensureSearchHighlightLayers(targetMap);
+    const source = targetMap.getSource(SEARCH_HIGHLIGHT_SOURCE_ID);
+    if (!source) return;
+    source.setData({
+        type: 'FeatureCollection',
+        features: [feature],
+    });
+}
+
+function renderSearchResult(lon, lat, labelText, feature = null) {
+    const targetMaps = isComparisonMode ? [mapBefore, mapAfter] : [map];
+    const bounds = feature ? getFeatureBounds(feature) : null;
+    const highlightPolygon = isPolygonFeature(feature);
+
+    targetMaps.forEach((targetMap) => {
+        if (!targetMap) return;
+
+        setSearchHighlight(targetMap, highlightPolygon ? feature : null);
+
+        if (bounds && highlightPolygon) {
+            targetMap.fitBounds(bounds, {
+                padding: 56,
+                duration: 1200,
+                maxZoom: Math.max(getZoomOnResult(), 16),
+            });
+        } else {
+            targetMap.flyTo({
+                center: [lon, lat],
+                zoom: getZoomOnResult(),
+                duration: 1200,
+            });
+        }
+    });
+
+    currentSearchCoords = [lon, lat];
+
+    if (isComparisonMode) {
+        const overlay = document.getElementById('search-markers-overlay');
+        if (!overlay) return;
+
+        const existingMarker = document.getElementById('search-marker-overlay');
+        const existingPopup = document.getElementById('search-popup-overlay');
+        if (existingMarker) existingMarker.remove();
+        if (existingPopup) existingPopup.remove();
+
+        const markerEl = document.createElement('div');
+        markerEl.id = 'search-marker-overlay';
+        markerEl.className = 'search-marker search-marker-overlay';
+        overlay.appendChild(markerEl);
+        searchMarkerOverlayEl = markerEl;
+
+        const popupEl = document.createElement('div');
+        popupEl.id = 'search-popup-overlay';
+        popupEl.className = 'search-popup-overlay';
+        popupEl.innerHTML = `
+            <div class="popup-content">
+                <div class="popup-row">
+                    <span class="popup-label">Найдено</span>
+                    <span class="popup-value">${labelText}</span>
+                </div>
+                <button class="popup-close">×</button>
+            </div>
+        `;
+
+        const closeBtn = popupEl.querySelector('.popup-close');
+        if (closeBtn) {
+            closeBtn.addEventListener('click', () => {
+                const marker = document.getElementById('search-marker-overlay');
+                const popup = document.getElementById('search-popup-overlay');
+                if (marker) marker.remove();
+                if (popup) popup.remove();
+                currentSearchCoords = null;
+                searchMarkerOverlayEl = null;
+                searchPopupOverlayEl = null;
+                [mapBefore, mapAfter].forEach(clearSearchHighlight);
+            });
+        }
+
+        overlay.appendChild(popupEl);
+        searchPopupOverlayEl = popupEl;
+
+        setTimeout(() => updateSearchMarkerPosition(), 100);
+        return;
+    }
+
+    searchMarkers.forEach((marker) => marker && marker.remove());
+    searchPopups.forEach((popup) => popup && popup.remove());
+    searchMarkers = [];
+    searchPopups = [];
+
+    if (!map) return;
+
+    // Для полигонов достаточно подсветки контура; пин оставляем для точек.
+    if (!highlightPolygon) {
+        const el = document.createElement('div');
+        el.className = 'search-marker';
+
+        const marker = new maplibregl.Marker({ element: el, anchor: 'bottom' })
+            .setLngLat([lon, lat])
+            .addTo(map);
+        searchMarkers.push(marker);
+    }
+
+    const popup = new maplibregl.Popup({ closeButton: true, closeOnClick: false, offset: 25 })
+        .setLngLat([lon, lat])
+        .setHTML(`
+            <div class="popup-content">
+                <div class="popup-row">
+                    <span class="popup-label">Найдено</span>
+                    <span class="popup-value">${labelText}</span>
+                </div>
+            </div>
+        `)
+        .addTo(map);
+
+    popup.on('close', () => {
+        clearSearchHighlight(map);
+    });
+
+    searchPopups.push(popup);
+}
+
+function getGeocoderUrl() {
+    if (searchConfig && searchConfig.geocoder_url) {
+        return searchConfig.geocoder_url;
+    }
+    return 'https://pvz-map-backend.wildberries.ru/api/v2/map/geocode';
+}
+
+function buildGeocoderUrl(query, results = null) {
+    const baseUrl = getGeocoderUrl();
+    const url = new URL(baseUrl);
+    url.searchParams.set('geocode', query);
+    url.searchParams.set('lang', 'ru');
+
+    if (results !== null) {
+        url.searchParams.set('results', results);
+    }
+
+    if (searchConfig && searchConfig.geocoder_params) {
+        for (const [key, value] of Object.entries(searchConfig.geocoder_params)) {
+            url.searchParams.set(key, value);
+        }
+    }
+
+    return url.toString();
+}
+
+async function searchGeojson(queryOverride = null) {
+    const searchInput = document.getElementById('address-search');
+    const query = queryOverride || (searchInput ? searchInput.value.trim() : '');
+
+    hideSuggestions();
+
+    if (!query) {
+        alert('Введите значение для поиска');
+        return;
+    }
+
+    const matches = findGeojsonMatches(query, 1);
+    if (!matches.length) {
+        alert('Ничего не найдено');
+        return;
+    }
+
+    const bestMatch = matches[0];
+    renderSearchResult(
+        bestMatch.coords[0],
+        bestMatch.coords[1],
+        bestMatch.displayText,
+        bestMatch.feature
+    );
+}
+
+async function searchByGeocoder(addressOverride = null) {
+    const searchInput = document.getElementById('address-search');
+    const address = addressOverride || (searchInput ? searchInput.value : '');
+
+    hideSuggestions();
+
+    if (!address) {
+        alert('Введите адрес');
+        return;
+    }
+
+    try {
+        const url = buildGeocoderUrl(address, 1);
+        const response = await fetch(url);
+        const data = await response.json();
+
+        const members = data && data.response && data.response.GeoObjectCollection &&
+            data.response.GeoObjectCollection.featureMember;
+
+        if (!members || members.length === 0) {
+            alert('Адрес не найден');
+            return;
+        }
+
+        const pos = members[0].GeoObject.Point.pos;
+        const coords = pos.split(' ').map(Number);
+        const lon = coords[0];
+        const lat = coords[1];
+
+        renderSearchResult(lon, lat, address);
+    } catch (error) {
+        console.error('Geocoding error:', error);
+        alert('Ошибка при поиске адреса');
+    }
+}
+
+async function searchAddress(addressOverride = null) {
+    if (isGeojsonSearchMode()) {
+        return searchGeojson(addressOverride);
+    }
+    return searchByGeocoder(addressOverride);
+}
+
+async function showSuggestionsFromGeojson(query) {
+    if (!query || query.length < 1) {
+        hideSuggestions();
+        return;
+    }
+
+    const suggestionsContainer = document.getElementById('address-search-suggestions');
+    if (!suggestionsContainer) return;
+
+    const matches = findGeojsonMatches(query, getMaxResults());
+    if (!matches.length) {
+        hideSuggestions();
+        return;
+    }
+
+    suggestionsContainer.innerHTML = '';
+
+    matches.forEach((item) => {
+        const suggestionText = item.displayText;
+        const row = document.createElement('div');
+        row.className = 'address-search-suggestion-item';
+        row.textContent = suggestionText;
+        row.onclick = () => {
+            const searchInput = document.getElementById('address-search');
+            if (searchInput) searchInput.value = item.valueText;
+            searchGeojson(item.valueText);
+        };
+        suggestionsContainer.appendChild(row);
+    });
+
+    suggestionsContainer.classList.add('visible');
+}
+
+async function showSuggestionsFromGeocoder(query) {
+    if (!query || query.length < 3) {
+        hideSuggestions();
+        return;
+    }
+
+    const suggestionsContainer = document.getElementById('address-search-suggestions');
+    if (!suggestionsContainer) return;
+
+    try {
+        const url = buildGeocoderUrl(query, getMaxResults());
+        const response = await fetch(url);
+        const data = await response.json();
+
+        const members = data && data.response && data.response.GeoObjectCollection &&
+            data.response.GeoObjectCollection.featureMember;
+
+        if (!members || members.length === 0) {
+            hideSuggestions();
+            return;
+        }
+
+        const suggestions = members.slice(0, getMaxResults());
+        suggestionsContainer.innerHTML = '';
+
+        suggestions.forEach((member) => {
+            const geoObject = member.GeoObject;
+            const addressText =
+                (geoObject.metaDataProperty && geoObject.metaDataProperty.GeocoderMetaData && geoObject.metaDataProperty.GeocoderMetaData.text) ||
+                geoObject.name ||
+                'Адрес не указан';
+
+            const item = document.createElement('div');
+            item.className = 'address-search-suggestion-item';
+            item.textContent = addressText;
+            item.onclick = () => {
+                const searchInput = document.getElementById('address-search');
+                if (searchInput) searchInput.value = addressText;
+                searchByGeocoder(addressText);
+            };
+            suggestionsContainer.appendChild(item);
+        });
+
+        suggestionsContainer.classList.add('visible');
+    } catch (error) {
+        console.error('Suggestions error:', error);
+        hideSuggestions();
+    }
+}
+
+async function showSuggestions(query) {
+    if (isGeojsonSearchMode()) {
+        return showSuggestionsFromGeojson(query);
+    }
+    return showSuggestionsFromGeocoder(query);
+}
+
+function hideSuggestions() {
+    const suggestionsContainer = document.getElementById('address-search-suggestions');
+    if (suggestionsContainer) {
+        suggestionsContainer.classList.remove('visible');
+    }
+}
+
+const debouncedShowSuggestions = debounce(showSuggestions, 300);
+
+document.addEventListener('DOMContentLoaded', function () {
+    const searchInput = document.getElementById('address-search');
+    if (!searchInput) return;
+
+    searchInput.addEventListener('keypress', function (e) {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            searchAddress();
+        }
+    });
+
+    if (searchConfig && searchConfig.autocomplete) {
+        searchInput.addEventListener('input', function (e) {
+            const query = e.target.value.trim();
+            const minLen = isGeojsonSearchMode() ? 1 : 3;
+            if (query.length >= minLen) {
+                debouncedShowSuggestions(query);
+            } else {
+                hideSuggestions();
+            }
+        });
+
+        searchInput.addEventListener('blur', function () {
+            setTimeout(hideSuggestions, 200);
+        });
+
+        searchInput.addEventListener('focus', function () {
+            const query = searchInput.value.trim();
+            const minLen = isGeojsonSearchMode() ? 1 : 3;
+            if (query.length >= minLen) {
+                debouncedShowSuggestions(query);
+            }
+        });
+    }
+});
+
+
+        // =========================================================================
+        // Легенда
+        // =========================================================================
+        
+        // Инициализация легенды
+        function initLegend() {
+            try {
+                                // Слой parcel (один цвет, компактный вид)
+                const parcelLoader = document.getElementById('parcel-loader');
+                const parcelColorIndicator = document.getElementById('parcel-color-indicator');
+                
+                // Цвет уже установлен в HTML через style, просто скрываем лоадер
+                if (parcelLoader) parcelLoader.style.display = 'none';
+                if (parcelColorIndicator) parcelColorIndicator.style.display = 'block';
+            } catch (error) {
+                console.error('Ошибка инициализации легенды:', error);
+                // При ошибке также скрываем лоадеры
+                const parcelLoader = document.getElementById('parcel-loader');
+                if (parcelLoader) parcelLoader.style.display = 'none';
+            }
+        }
+        
+        // Переключение видимости слоя
+        function toggleLayer(layerId, visible) {
+            const targetMaps = isComparisonMode ? [mapBefore, mapAfter] : [map];
+            let found = false;
+            
+            targetMaps.forEach(targetMap => {
+                if (targetMap && targetMap.getLayer(layerId)) {
+                    if (visible) {
+                        targetMap.setLayoutProperty(layerId, 'visibility', 'visible');
+                    } else {
+                        targetMap.setLayoutProperty(layerId, 'visibility', 'none');
+                    }
+                    found = true;
+                }
+            });
+            
+            if (!found) {
+                console.warn(`Слой ${layerId} не найден`);
+            }
+        }
+        
+        // Сворачивание всей панели легенды
+        function toggleLegendPanel() {
+            const body = document.querySelector('.legend-body');
+            const header = document.querySelector('.legend-panel-header');
+
+            if (body && header) {
+                body.classList.toggle('collapsed');
+                header.classList.toggle('collapsed');
+            }
+        }
+
+        // Переключение состояния блока инструкций
+        function toggleInstructions() {
+            const content = document.querySelector('.legend-instructions-content');
+            const header = document.querySelector('.legend-instructions-header');
+            
+            if (content && header) {
+                content.classList.toggle('collapsed');
+                header.classList.toggle('collapsed');
+            }
+        }
+        
+        // Установка начального состояния (скрыто по умолчанию)
+        document.addEventListener('DOMContentLoaded', function() {
+            const content = document.querySelector('.legend-instructions-content');
+            const header = document.querySelector('.legend-instructions-header');
+            
+            if (content && header) {
+                // Убеждаемся, что блок скрыт по умолчанию
+                content.classList.add('collapsed');
+                header.classList.add('collapsed');
+            }
+        });
+
+        // =========================================================================
+        // Инициализация карты
+        // =========================================================================
+        
+        // Инициализация карты
+        async function initMap() {
+            await loadConfig();
+            
+            if (isComparisonMode) {
+                // Режим сравнения: создаем две карты
+                mapBefore = new maplibregl.Map({
+                    container: 'before',
+                    style: {
+                        version: 8,
+                        sources: {},
+                        layers: []
+                    },
+                    center: mapSettings.center,
+                    zoom: mapSettings.zoom,
+                    cooperativeGestures: true
+                });
+                
+                mapAfter = new maplibregl.Map({
+                    container: 'after',
+                    style: {
+                        version: 8,
+                        sources: {},
+                        layers: []
+                    },
+                    center: mapSettings.center,
+                    zoom: mapSettings.zoom,
+                    cooperativeGestures: true
+                });
+                
+                // Ждем загрузки обеих карт
+                let beforeLoaded = false;
+                let afterLoaded = false;
+                
+                const checkAndInit = async () => {
+                    if (beforeLoaded && afterLoaded) {
+                        console.log('Обе карты загружены');
+                        
+                        // Добавляем кастомные тайлы на обе карты
+                        await addCustomTiles(mapBefore);
+                        await addCustomTiles(mapAfter);
+                        
+                        // Загружаем слои
+                        await loadLayersLeft();
+                        await loadLayersRight();
+                        layersLoaded = true;
+                        
+                        // Инициализируем обработчики
+                        initEventHandlers();
+                        
+                        // Инициализируем легенду
+                        initLegend();
+                        
+                        // Инициализируем UI переключения тайлов
+                        updateTileProviderUI(currentTileProvider);
+                        
+                        // Инициализируем слайдер сравнения
+                        compare = new maplibregl.Compare(mapBefore, mapAfter, '.comparison-container', {
+                            orientation: 'vertical',
+                            mousemove: false
+                        });
+                        
+                        // Добавляем обработчики для обновления позиции маркера поиска
+                        if (typeof updateSearchMarkerPosition === 'function') {
+                            mapBefore.on('move', updateSearchMarkerPosition);
+                            mapBefore.on('moveend', updateSearchMarkerPosition);
+                            mapAfter.on('move', updateSearchMarkerPosition);
+                            mapAfter.on('moveend', updateSearchMarkerPosition);
+                        }
+                        
+                        // Инициализируем оптимизацию для неактивных вкладок
+                        initVisibilityOptimization();
+                    }
+                };
+                
+                mapBefore.on('load', async () => {
+                    console.log('Левая карта (до) загружена');
+                    beforeLoaded = true;
+                    await checkAndInit();
+                });
+                
+                mapAfter.on('load', async () => {
+                    console.log('Правая карта (после) загружена');
+                    afterLoaded = true;
+                    await checkAndInit();
+                });
+            } else {
+                // Обычный режим: одна карта
+                map = new maplibregl.Map({
+                    container: 'map',
+                    style: {
+                        version: 8,
+                        sources: {},
+                        layers: []
+                    },
+                    center: mapSettings.center,
+                    zoom: mapSettings.zoom,
+                    cooperativeGestures: true
+                });
+                
+                map.on('load', async () => {
+                    console.log('Карта загружена');
+                    
+                    // Добавляем кастомные тайлы
+                    await addCustomTiles(map);
+                    
+                    // Загружаем и добавляем слои
+                    await loadLayers();
+                    layersLoaded = true;
+                    
+                    // Инициализируем обработчики
+                    initEventHandlers();
+                    
+                    // Инициализируем легенду
+                    initLegend();
+                    
+                    // Инициализируем UI переключения тайлов
+                    updateTileProviderUI(currentTileProvider);
+                    
+                    // Добавляем обработчики для обновления позиции маркера поиска (если используется overlay)
+                    if (typeof updateSearchMarkerPosition === 'function') {
+                        map.on('move', updateSearchMarkerPosition);
+                        map.on('moveend', updateSearchMarkerPosition);
+                    }
+                    
+                    // Инициализируем оптимизацию для неактивных вкладок
+                    initVisibilityOptimization();
+                });
+            }
+        }
+        
+        // Инициализация обработчиков событий
+        function initEventHandlers() {
+                        function map_parcelPopupHtml(props) {
+                return `<div class="popup-content"><div class="popup-row"><span class="popup-label">📍 parcel</span><span class="popup-value">${value}</span></div></div>`;
+            }
+            map.on('mouseenter', 'parcel-layer', () => {
+                map.getCanvas().style.cursor = 'pointer';
+            });
+            
+            map.on('mouseleave', 'parcel-layer', () => {
+                map.getCanvas().style.cursor = '';
+            });
+            const mapCombinedPopup = new maplibregl.Popup({
+                closeButton: true,
+                closeOnClick: false
+            });
+            const mapPopupLayers = ["parcel-layer"];
+            const mapPopupLayerLabels = {};
+            const mapPopupRenderers = {
+                "parcel": map_parcelPopupHtml
+            };
+            const mapPopupHighlightSourceId = 'map-popup-highlight-source';
+            const mapPopupHighlightFillLayerId = 'map-popup-highlight-fill';
+            const mapPopupHighlightLineLayerId = 'map-popup-highlight-line';
+
+            function ensureMapPopupHighlightLayers() {
+                if (map.getSource(mapPopupHighlightSourceId)) return;
+
+                map.addSource(mapPopupHighlightSourceId, {
+                    type: 'geojson',
+                    data: {
+                        type: 'FeatureCollection',
+                        features: []
+                    }
+                });
+
+                map.addLayer({
+                    id: mapPopupHighlightFillLayerId,
+                    type: 'fill',
+                    source: mapPopupHighlightSourceId,
+                    paint: {
+                        'fill-color': '#ffd400',
+                        'fill-opacity': 0.28
+                    }
+                });
+
+                map.addLayer({
+                    id: mapPopupHighlightLineLayerId,
+                    type: 'line',
+                    source: mapPopupHighlightSourceId,
+                    paint: {
+                        'line-color': '#ffd400',
+                        'line-width': 3.5
+                    }
+                });
+            }
+
+            function clearMapPopupHighlight() {
+                const source = map.getSource(mapPopupHighlightSourceId);
+                if (!source) return;
+                source.setData({
+                    type: 'FeatureCollection',
+                    features: []
+                });
+            }
+
+            function setMapPopupHighlight(feature) {
+                if (!feature) {
+                    clearMapPopupHighlight();
+                    return;
+                }
+                ensureMapPopupHighlightLayers();
+                const source = map.getSource(mapPopupHighlightSourceId);
+                if (!source) return;
+                source.setData({
+                    type: 'FeatureCollection',
+                    features: [feature]
+                });
+            }
+
+            mapCombinedPopup.on('close', () => {
+                clearMapPopupHighlight();
+            });
+
+            map.on('click', (e) => {
+                const features = map.queryRenderedFeatures(e.point, { layers: mapPopupLayers });
+                const allFeaturesAtPoint = map.queryRenderedFeatures(e.point);
+                if (!features || !features.length) {
+                    clearMapPopupHighlight();
+                    return;
+                }
+
+                const byLayer = new Map();
+                features.forEach((feature) => {
+                    if (!feature || !feature.layer || !feature.layer.id) return;
+                    const layerId = feature.layer.id;
+                    const layerName = layerId.endsWith('-layer') ? layerId.slice(0, -6) : layerId;
+                    if (!mapPopupRenderers[layerName]) return;
+                    if (!byLayer.has(layerName)) {
+                        byLayer.set(layerName, feature);
+                    }
+                });
+
+                if (byLayer.size === 0) {
+                    clearMapPopupHighlight();
+                    return;
+                }
+
+                const polygonFeature = allFeaturesAtPoint.find((feature) => {
+                    if (!feature || !feature.geometry) return false;
+                    if (!feature.layer || !feature.layer.id) return false;
+                    if (feature.layer.id === mapPopupHighlightFillLayerId || feature.layer.id === mapPopupHighlightLineLayerId) return false;
+                    const geomType = feature.geometry.type;
+                    return geomType === 'Polygon' || geomType === 'MultiPolygon';
+                });
+
+                if (polygonFeature) {
+                    setMapPopupHighlight(polygonFeature);
+                } else {
+                    clearMapPopupHighlight();
+                }
+
+                const sections = [];
+                byLayer.forEach((feature, layerName) => {
+                    const props = feature.properties || {};
+                    const rawLayerTitle = mapPopupLayerLabels[layerName] || layerName;
+                    const layerTitle = String(rawLayerTitle)
+                        .replaceAll('&', '&amp;')
+                        .replaceAll('<', '&lt;')
+                        .replaceAll('>', '&gt;')
+                        .replaceAll('"', '&quot;');
+                    const layerHtml = mapPopupRenderers[layerName](props);
+                    sections.push(`<div class="popup-layer-section"><div class="popup-row"><span class="popup-label">Слой</span><span class="popup-value">${layerTitle}</span></div>${layerHtml}</div>`);
+                });
+
+                mapCombinedPopup.setLngLat(e.lngLat)
+                    .setHTML(sections.join('<hr/>'))
+                    .addTo(map);
+
+                if (false) {
+                    const popupEl = mapCombinedPopup.getElement();
+                    if (popupEl) {
+                        popupEl.classList.add('popup--resizable');
+                        const shellEl = popupEl.querySelector('.maplibregl-popup-content');
+                        if (shellEl) shellEl.classList.add('popup-shell--resizable');
+                    }
+                }
+            });
+            // Двойной клик / правый клик для перехода в Яндекс.Карты
+            map.on('dblclick', (e) => {
+                openYandexMaps(e.lngLat.lng, e.lngLat.lat);
+            });
+            
+            map.on('contextmenu', (e) => {
+                e.preventDefault();
+                openYandexMaps(e.lngLat.lng, e.lngLat.lat);
+            });
+        }
+
+        // =========================================================================
+        // Глобальные переменные и конфигурация
+        // =========================================================================
+        
+        // Глобальные переменные
+        let map;
+        let mapBefore = null; // Левая карта (до)
+        let mapAfter = null;  // Правая карта (после)
+        let compare = null;   // Слайдер сравнения
+        let searchMarkers = [];
+        let searchPopups = [];
+        let mapConfig = null;
+        let layersLoaded = false; // Флаг загрузки слоев
+        let currentTileProvider = 'yandex'; // Текущий провайдер тайлов
+        const isComparisonMode = false;
+        const comparisonLeftLayers = [];
+        const comparisonRightLayers = [];
+        const searchConfig = {"geocoder_url": null, "geocoder_params": {}, "autocomplete": true, "zoom_on_result": 16, "search_mode": "geocoder", "search_fields": [], "search_layers": null, "max_results": 5};
+        const embeddedParcelData = {"type": "FeatureCollection", "name": "parcel", "crs": {"type": "name", "properties": {"name": "urn:ogc:def:crs:OGC:1.3:CRS84"}}, "features": [{"type": "Feature", "properties": {"cadastral_number": "77:02:0024002:42", "area_zu": 0.10092450025915761, "owner_category": "Физические лица", "generated_land_use": "открытые грунты/асфальт", "category_vri": "Гаражи", "restrictions": "ЛЭП <50%", "dev_prig_fin": "2 приоритет", "district": "Марьина Роща", "okrug": "СВАО", "in_mkad": true, "card_id": "B"}, "geometry": {"type": "Polygon", "coordinates": [[[37.6087279117595, 55.799306206330684], [37.608752943212046, 55.79890398628557], [37.60840197615662, 55.798896032289335], [37.6083616359581, 55.79929898425046], [37.6087279117595, 55.799306206330684]]]}}]};
+        const use_compression = false;
+        
+        // Конфигурация карты
+        const mapSettings = {
+            center: [37.60855728958507, 55.79910111931001],
+            zoom: 17
+        };
+        
+        // Конфигурация провайдеров тайлов
+        const tileProviders = {"yandex": {"name": "yandex", "url": "https://core-renderer-tiles.maps.yandex.net/tiles?l=map&x={x}&y={y}&z={z}&lang=ru_RU&projection=web_mercator&scale=4", "tileSize": 256, "minzoom": 0, "maxzoom": 18, "attribution": "Яндекс.Карты", "isOverlay": false, "defaultVisible": false, "defaultOpacity": 1.0, "paint": {"raster-saturation": -1}}};
+        
+                async function loadConfig() {
+            // Встроенные данные (избегаем CORS при открытии через file://)
+            mapConfig = {
+            "settings": {
+                        "center": [
+                                    37.60855728958507,
+                                    55.79910111931001
+                        ],
+                        "zoom": 17,
+                        "title": "Участок",
+                        "tile_provider": "yandex"
+            },
+            "layers": {
+                        "parcel": {
+                                    "name": "parcel",
+                                    "source": "parcel",
+                                    "property_field": "value",
+                                    "colors": [
+                                                "#1c32bd"
+                                    ],
+                                    "stats": null,
+                                    "layer_type": "fill",
+                                    "opacity": 0.3,
+                                    "radius_range": null,
+                                    "stroke_width": 2.0,
+                                    "stroke_color": "#1c32bd"
+                        }
+            },
+            "components": null,
+            "comparison": null
+};
+            console.log('Конфигурация загружена:', mapConfig);
+        }
+        
+                // Оптимизация памяти для неактивных вкладок (RAM + GPU)
+        function initVisibilityOptimization() {
+            document.addEventListener('visibilitychange', async () => {
+                if (document.hidden) {
+                    // Вкладка неактивна - освобождаем RAM и останавливаем рендеринг
+                    if (map && layersLoaded) {
+                        // 1. Останавливаем рендеринг
+                        map.stop();
+                        
+                        // 2. Удаляем источники данных для освобождения RAM
+                        const sourcesToRemove = ['parcel'];
+                        sourcesToRemove.forEach(sourceId => {
+                            if (map.getSource(sourceId)) {
+                                // Удаляем все слои, связанные с этим источником
+                                const style = map.getStyle();
+                                if (style && style.layers) {
+                                    style.layers
+                                        .filter(layer => layer.source === sourceId)
+                                        .forEach(layer => {
+                                            try {
+                                                if (map.getLayer(layer.id)) {
+                                                    map.removeLayer(layer.id);
+                                                }
+                                            } catch (e) {
+                                                // Слой уже удален или не существует
+                                            }
+                                        });
+                                }
+                                // Удаляем источник (освобождает RAM)
+                                try {
+                                    map.removeSource(sourceId);
+                                } catch (e) {
+                                    // Источник уже удален
+                                }
+                            }
+                        });
+                        
+                        // 3. Скрываем canvas для освобождения GPU памяти
+                        map.getCanvas().style.display = 'none';
+                        
+                        layersLoaded = false;
+                        console.log('Карта приостановлена: RAM и GPU освобождены (вкладка неактивна)');
+                    }
+                } else {
+                    // Вкладка активна - восстанавливаем данные и рендеринг
+                    if (map && !layersLoaded) {
+                        // 1. Показываем canvas
+                        map.getCanvas().style.display = 'block';
+                        
+                        // 2. Перезагружаем данные (восстанавливаем в RAM)
+                        await loadLayers();
+                        layersLoaded = true;
+                        
+                        // 3. Обновляем карту
+                        map.resize();
+                        map.triggerRepaint();
+                        
+                        console.log('Карта возобновлена: данные перезагружены (вкладка активна)');
+                    } else if (map && layersLoaded) {
+                        // Данные уже загружены, просто обновляем отображение
+                        map.getCanvas().style.display = 'block';
+                        map.resize();
+                        map.triggerRepaint();
+                    }
+                }
+            });
+        }
+        
+                // Оптимизированная функция для развертывания MULTIPOINT в отдельные точки
+        // Использует асинхронную обработку порциями для избежания блокировки UI
+        function explodeMultiPoint(geojson, callback) {
+            const features = [];
+            let processed = 0;
+            const total = geojson.features.length;
+            const chunkSize = 100; // Обрабатываем по 100 кластеров за раз
+            
+            function processChunk() {
+                const end = Math.min(processed + chunkSize, total);
+                
+                for (let i = processed; i < end; i++) {
+                    const feature = geojson.features[i];
+                    if (feature.geometry.type === 'MultiPoint') {
+                        // Разворачиваем MULTIPOINT в отдельные Point объекты
+                        feature.geometry.coordinates.forEach(coord => {
+                            features.push({
+                                type: 'Feature',
+                                geometry: {
+                                    type: 'Point',
+                                    coordinates: coord
+                                },
+                                properties: feature.properties
+                            });
+                        });
+                    } else {
+                        // Оставляем как есть для Point и других типов
+                        features.push(feature);
+                    }
+                }
+                
+                processed = end;
+                
+                if (processed < total) {
+                    // Продолжаем обработку в следующем кадре
+                    setTimeout(processChunk, 0);
+                } else {
+                    // Обработка завершена
+                    callback({
+                        type: 'FeatureCollection',
+                        features: features
+                    });
+                }
+            }
+            
+            // Начинаем обработку
+            processChunk();
+        }
+        
+                async function loadLayers() {
+
+                        // Встроенные данные parcel
+            const parcelDataRaw = embeddedParcelData;
+            
+            // Проверяем наличие MULTIPOINT и разворачиваем если необходимо
+            const parcelHasMultiPoint = parcelDataRaw && parcelDataRaw.features && 
+                parcelDataRaw.features.some(f => f.geometry && f.geometry.type === 'MultiPoint');
+            
+            const parcelData = parcelHasMultiPoint ? await new Promise((resolve) => {
+                explodeMultiPoint(parcelDataRaw, resolve);
+            }) : parcelDataRaw;
+            
+            map.addSource('parcel', {
+                type: 'geojson',
+                data: parcelData
+            });
+            
+            map.addLayer({
+                id: 'parcel-layer',
+                type: 'fill',
+                source: 'parcel',
+                paint: {
+                'fill-color': '#1c32bd',
+                'fill-opacity': 0.3,
+                'fill-outline-color': "#1c32bd"
+                }
+            });
+            
+            console.log('Слой parcel добавлен на map');
+        }
+        
+        
+        
+        
+        
+        // Запускаем инициализацию
+        initMap();
+    </script>
+</body>
+</html>
+
+
+
+
+

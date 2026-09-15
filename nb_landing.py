@@ -10,7 +10,7 @@
 #   "pyogrio",
 #   # НЕ wibemaps==0.2.6: пакета нет на PyPI.
 #   # Абсолютный file: — sandbox uv не резолвит относительный путь.
-#   "wibemaps @ file:///Users/katerinasitnikova/Documents/work/wibemaps",
+#   "wibemaps==0.2.6",
 # ]
 #
 # [tool.marimo.runtime]
@@ -65,9 +65,17 @@ def _():
     alt.data_transformers.disable_max_rows()
     DATA_DIR = Path(__file__).resolve().parent / "data"
 
-    def embed_map(map_obj, height: int, title: str = "", chrome: bool = True):
-        # wibemaps всегда вшивает search+legend в HTML; chrome=False прячет их.
-        # mo.iframe (srcdoc) — data: base64 на больших картах часто даёт пустой iframe.
+    def embed_map(
+        map_obj,
+        height: int,
+        title: str = "",
+        chrome: bool = True,
+        sidecar: str | None = None,
+    ):
+        # Dual-write: data: URI for Marimo live; sidecar .html for GitHub Pages
+        # (iOS/Android blank-iframe fix — see skill marimo-html-export).
+        import base64
+
         _html = map_obj.to_html().replace(
             "zoom: mapSettings.zoom\n                });",
             "zoom: mapSettings.zoom,\n                    cooperativeGestures: true\n                });",
@@ -80,11 +88,17 @@ def _():
                 _html = _html.replace("</head>", _hide + "</head>", 1)
             else:
                 _html = _hide + _html
-        return mo.iframe(_html, width="100%", height=f"{height}px").style(
-            border="1px solid #e4e4e7",
-            border_radius="4px",
-            overflow="hidden",
-            max_width="100%",
+        _pages = Path(__file__).resolve().parent / "docs"
+        if sidecar and _pages.is_dir():
+            (_pages / sidecar).write_text(_html, encoding="utf-8")
+        _encoded = base64.b64encode(_html.encode("utf-8")).decode("ascii")
+        _title = title or "map"
+        return mo.Html(
+            f'<div style="width:100%;height:{height}px;overflow:hidden;'
+            f'border:1px solid #e4e4e7;border-radius:4px;max-width:100%;">'
+            f'<iframe src="data:text/html;base64,{_encoded}" title="{_title}" '
+            f'style="width:100%;height:{height}px;border:0;display:block;"></iframe>'
+            f"</div>"
         )
 
     def center_zoom(bounds, pad_mult: float = 2.0, min_pad: float = 0.004, width: int = 400, height: int = 220):
@@ -437,7 +451,13 @@ def _(
         except Exception:
             return str(v)
 
-    def _mini_map(gdf_one, color: str, pad_mult: float = 2.5, min_pad: float = 0.004):
+    def _mini_map(
+        gdf_one,
+        color: str,
+        pad_mult: float = 2.5,
+        min_pad: float = 0.004,
+        sidecar: str | None = None,
+    ):
         map_h = 220
         _center, _zoom = center_zoom(
             gdf_one.total_bounds,
@@ -465,7 +485,9 @@ def _(
                 },
             )
         )
-        return embed_map(_m, map_h, title="Пример участка", chrome=False)
+        return embed_map(
+            _m, map_h, title="Пример участка", chrome=False, sidecar=sidecar
+        )
 
     def _plot_card(title: str, rows: list, reason: str, map_widget):
         rows_html = "".join(
@@ -509,7 +531,7 @@ def _(
             ("Приоритет модели", str(row_a.get("dev_prig_fin", "—"))),
         ],
         "причина: правообладание, с которым не умеем работать",
-        _mini_map(gdf_a, ACCENT),
+        _mini_map(gdf_a, ACCENT, sidecar="parcel-a.html"),
     )
     card_b = _plot_card(
         "Участок Б · Марьина Роща",
@@ -522,7 +544,7 @@ def _(
             ("Приоритет модели", str(row_b.get("dev_prig_fin", "—"))),
         ],
         "причина: недостаточная площадь и невозможность расширить территорию рассмотрения",
-        _mini_map(gdf_b, ACCENT, pad_mult=1.2, min_pad=0.0007),
+        _mini_map(gdf_b, ACCENT, pad_mult=1.2, min_pad=0.0007, sidecar="parcel-b.html"),
     )
 
     mo.vstack(
@@ -1266,7 +1288,12 @@ def _(
         )
 
     _counts = center_gdf["dev_prig_fin"].value_counts()
-    _map_panel = embed_map(_m, _map_h, title="Приоритет · центр Москвы")
+    _map_panel = embed_map(
+        _m,
+        _map_h,
+        title="Приоритет · центр Москвы",
+        sidecar="map.html",
+    )
 
     mo.vstack(
         [

@@ -1,6 +1,8 @@
-/* Marimo: .min-w-[400px] + flex min-width:auto + #App overflow-x-hidden.
-   iOS shrink-to-fits the overflow; Android/Chrome clips. */
+/* Marimo medium export: mobile layout fixes for GitHub Pages.
+   Copy next to the notebook and reference via css_file="landing.css". */
 
+/* Flex children default min-width:auto; Marimo column has min-w-[400px].
+   iOS shrink-to-fits overflow; Android/Chrome clips with overflow-x:hidden. */
 #App,
 #App > div,
 #App .min-w-\[400px\],
@@ -61,6 +63,7 @@
     box-sizing: border-box;
   }
 
+  /* Only on mobile: do NOT apply globally — it overrides inline max-width:640px on PNGs */
   #App img {
     max-width: 100% !important;
   }

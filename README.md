@@ -6,11 +6,25 @@ Research landing: модель приоритизации девелоперск
 
 **https://kate25409.github.io/research-landing/**
 
-Пересборка HTML:
+Мобильная вёрстка и карты: скилл `marimo-html-export` (sidecar iframe вместо `data:` URI + `landing.css`).
+
+## Пересборка Pages
 
 ```bash
-uv run --with marimo marimo export html --sandbox --no-include-code -f -o docs/index.html nb_landing.py
-cp landing.css docs/landing.css
+# 1) экспорт (нужен локальный wibemaps file: в PEP 723)
+uv run --with marimo marimo export html --sandbox --no-include-code -f \
+  -o /tmp/nb_landing_export.html nb_landing.py
+
+# 2) postprocess: data-URI → sidecar HTML + inject CSS
+# --names: от короткого iframe к длинному (parcel B, parcel A, center map)
+python ~/.cursor/skills/marimo-html-export/scripts/postprocess_pages.py \
+  /tmp/nb_landing_export.html \
+  --pages-dir docs \
+  --site-prefix /research-landing \
+  --css landing.css \
+  --names parcel-b.html,parcel-a.html,map.html
+
+git add docs && git commit -m "Update Pages export" && git push
 ```
 
 Локальный просмотр ноутбука:
